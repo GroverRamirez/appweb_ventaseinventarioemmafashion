@@ -1,0 +1,526 @@
+Actúa como un Arquitecto de Software y Desarrollador Full-Stack Senior especializado en Laravel + Vue 3 + Inertia, con experiencia en sistemas SaaS multi-tenant para pequeñas y medianas empresas.
+
+Tu objetivo es construir un sistema web completo para la gestión integral de ventas e inventario de una boutique de moda llamada Emma Fashion, con interfaz moderna estilo SaaS, autenticación robusta, roles diferenciados y reportes comerciales.
+
+El sistema se llama appweb_ventasemmafashion y debe quedar instalable localmente con Laragon en Windows, accesible vía http://127.0.0.1:8000.
+
+==================================================
+0. STACK TECNOLÓGICO OBLIGATORIO
+==================================================
+
+Backend:
+
+- PHP 8.3 o superior.
+- Laravel 12.
+- MySQL 8 vía Laragon.
+- Composer.
+- Laravel Fortify para autenticación.
+- Inertia.js como capa de respuesta SPA.
+
+Frontend:
+
+- Vue 3 con Composition API y <script setup lang="ts">.
+- TypeScript estricto.
+- Inertia.js cliente (@inertiajs/vue3).
+- Tailwind CSS v4 con @tailwindcss/vite.
+- reka-ui como librería de componentes accesibles.
+- lucide-vue-next para iconos.
+- @vueuse/core para composables.
+- vue-sonner para toasts.
+- @laravel/vite-plugin-wayfinder para rutas tipadas.
+
+Build:
+
+- Vite 8.
+- Compilación con npm run dev y npm run build.
+
+No uses jQuery, Bootstrap, Tailwind v3 ni librerías que no estén en esta lista sin justificación.
+
+==================================================
+1. CREACIÓN DE LA BASE DE DATOS
+==================================================
+
+Crea la base de datos local en MySQL llamada appweb_ventasemmafashion.
+
+Datos de conexión por defecto en Laragon:
+
+- DB_HOST: 127.0.0.1
+- DB_PORT: 3306
+- DB_DATABASE: appweb_ventasemmafashion
+- DB_USERNAME: root
+- DB_PASSWORD: (vacío)
+
+Genera todas las tablas con migrations de Laravel. Cada tabla debe tener:
+
+- Llave primaria id auto-incremental.
+- Foreign keys con onDelete cascade donde corresponda.
+- Timestamps created_at y updated_at.
+- Soft deletes en tablas críticas (teams, productos, ventas, compras).
+- Índices únicos compuestos donde aplique.
+
+==================================================
+2. OBJETIVO DEL SISTEMA
+==================================================
+
+Construir una plataforma multi-tenant donde cada boutique (team) pueda gestionar:
+
+- Su inventario de prendas por código, talla, color, ubicación.
+- Sus proveedores y compras de mercadería.
+- Sus ventas diarias con cierre de caja.
+- Sus reportes comerciales y alertas de stock bajo.
+- Sus categorías de productos.
+- Sus usuarios con roles diferenciados.
+
+Cada boutique opera de forma aislada: una vendedora de la boutique A nunca debe ver datos de la boutique B.
+
+==================================================
+3. MÓDULOS Y FUNCIONALIDADES
+==================================================
+
+A. AUTENTICACIÓN
+
+- Registro de nuevos usuarios con nombre, correo electrónico y contraseña.
+- Inicio de sesión con email y contraseña.
+- Recuperación de contraseña por correo (con link expirable).
+- Verificación de correo electrónico.
+- Autenticación de dos factores (2FA) con TOTP y códigos de recuperación.
+- Cierre de sesión.
+- Cifrado de contraseñas con bcrypt.
+- Todas las vistas de auth en español.
+
+B. GESTIÓN DE EQUIPOS (TEAMS)
+
+- Cada usuario tiene un team personal creado automáticamente al registrarse.
+- El usuario puede pertenecer a varios teams.
+- Selector de team activo en la barra lateral.
+- Editar nombre del team.
+- Eliminar team (solo no-personal, con confirmación escribiendo el nombre).
+- Sistema de invitaciones con código único expirable.
+
+C. GESTIÓN DE USUARIOS Y ROLES
+
+- Dos roles del sistema:
+  - Propietaria (owner): acceso total al sistema, incluyendo gestión de usuarios.
+  - Vendedora (member): acceso parcial según permisos asignados.
+- Tablas en base de datos:
+  - roles: catálogo de roles (slug, name, description, is_system, level).
+  - permissions: catálogo de permisos por módulo (slug, name, group).
+  - role_permissions: pivote rol × permiso.
+- La Propietaria puede invitar nuevas Vendedoras a su boutique.
+- La Propietaria puede cambiar el rol de un miembro.
+- La Propietaria puede quitar miembros del team.
+- Solo la Propietaria ve la opción "Usuarios" en el menú lateral.
+
+D. PRODUCTOS / INVENTARIO
+
+- Listado paginado con búsqueda por nombre, código, talla, color, modelo.
+- Crear producto con campos:
+  - Código (SKU) único por team.
+  - Nombre.
+  - Categoría (selección o creación inline).
+  - Modelo, talla, color, ubicación.
+  - Precio de compra y precio de venta (validar venta >= compra).
+  - Stock inicial y stock mínimo.
+  - Estado activo/inactivo.
+- Editar y eliminar productos.
+- No se puede eliminar un producto que tenga movimientos (compras o ventas asociadas).
+- Indicador visual de stock bajo (badge rojo si stock <= mínimo).
+
+E. CATEGORÍAS
+
+- CRUD completo de categorías.
+- Cada categoría pertenece a un team.
+- Nombre único por team.
+- Descripción opcional.
+- Contador de productos por categoría.
+- No se puede eliminar una categoría con productos asociados (confirmar antes).
+
+F. PROVEEDORES
+
+- CRUD completo de proveedores.
+- Campos: nombre (único por team), teléfono, dirección, notas.
+- Contador de compras realizadas a cada proveedor.
+
+G. COMPRAS
+
+- Registrar compra con fecha, proveedor, notas y múltiples items.
+- Cada item: producto, cantidad, costo unitario.
+- Al registrar compra: incrementar stock automáticamente y actualizar precio de compra del producto.
+- Listado paginado de compras con detalle expandible.
+- Transacción atómica (DB::transaction) para evitar inconsistencias.
+
+H. VENTAS
+
+- Registrar venta con fecha, notas y múltiples items.
+- Cada item: producto, cantidad, precio unitario.
+- Al seleccionar producto: autocompletar precio de venta sugerido.
+- Validar que la cantidad vendida no exceda el stock disponible.
+- Al registrar venta: decrementar stock automáticamente.
+- Cierre diario en tarjeta visible: fecha, total vendido, cantidad de ventas.
+- Listado paginado de ventas con detalle.
+- Transacción atómica.
+
+I. REPORTES
+
+- Filtro por rango de fechas (desde / hasta).
+- Tarjetas de métricas: total ventas, total compras, valor de inventario, productos con stock bajo.
+- Gráfico de ventas por día (barras horizontales con gradiente).
+- Top productos más vendidos.
+- Inventario crítico (productos con stock <= mínimo).
+- Compras por proveedor.
+
+J. DASHBOARD
+
+- Bienvenida personalizada con nombre del team.
+- 4 tarjetas de métricas con gradientes:
+  - Total productos.
+  - Productos con stock bajo (color destructivo).
+  - Ventas de hoy.
+  - Ventas del mes.
+- Panel de alertas de stock con icono y badge rojo.
+- Panel de ventas recientes con badges de productos vendidos.
+
+K. CONFIGURACIÓN (SETTINGS)
+
+- Perfil: editar nombre y correo, eliminar cuenta.
+- Seguridad: cambiar contraseña, activar/desactivar 2FA, ver códigos de recuperación.
+- Equipos: gestionar teams y membresías.
+- Apariencia: alternar tema claro / oscuro / sistema.
+
+==================================================
+4. ROLES Y PERMISOS DETALLADOS
+==================================================
+
+Implementa los permisos como enums PHP App\Enums\TeamPermission y como filas en la tabla permissions.
+
+Permisos requeridos (slug : nombre legible):
+
+Gestión del equipo:
+
+- team:update - Actualizar equipo
+- team:delete - Eliminar equipo
+- member:add - Agregar miembros
+- member:update - Actualizar miembros
+- member:remove - Quitar miembros
+- invitation:create - Crear invitaciones
+- invitation:cancel - Cancelar invitaciones
+
+Módulos de negocio:
+
+- dashboard:view - Ver dashboard
+- product:view - Ver productos
+- product:manage - Gestionar productos
+- category:view - Ver categorías
+- category:manage - Gestionar categorías
+- supplier:view - Ver proveedores
+- supplier:manage - Gestionar proveedores
+- purchase:view - Ver compras
+- purchase:create - Registrar compras
+- sale:view - Ver ventas
+- sale:create - Registrar ventas
+- report:view - Ver reportes
+
+Asignación por rol:
+
+- Propietaria: TODOS los permisos.
+- Vendedora:
+  - dashboard:view
+  - product:view (NO product:manage)
+  - category:view (NO category:manage)
+  - supplier:view, supplier:manage
+  - purchase:view, purchase:create
+  - sale:view, sale:create
+  - NO ve reportes ni gestiona usuarios.
+
+==================================================
+5. SEGURIDAD Y AUTORIZACIÓN
+==================================================
+
+Implementa defensa en profundidad con tres capas:
+
+Capa 1: Middleware EnsureTeamMembership
+
+- Valida que el usuario autenticado pertenece al team de la URL.
+- Cambia el team activo si llega por URL distinta.
+- Aborta con 403 si no pertenece.
+
+Capa 2: Middleware EnsureTeamPermission
+
+- Alias team.can:slug.
+- Recibe el permiso requerido como parámetro.
+- Aborta con 403 si el rol no lo tiene.
+- Aplicar a TODAS las rutas dentro del prefijo {current_team}.
+
+Capa 3: Validación de tenencia en controllers
+
+- En cada update/destroy: abort_unless($model->team_id === $currentTeam->id, 404).
+- Imposibilita acceder a registros de otro team aunque se manipule la URL.
+
+Adicionalmente:
+
+- Form Requests con Rule::unique compuesto por team_id.
+- Policies por modelo (ProductPolicy, SalePolicy, CategoryPolicy, etc.) con métodos view, create, update, delete.
+- Hash de contraseñas con bcrypt.
+- CSRF activo en todas las rutas web.
+- Throttling en login (5 intentos por minuto).
+
+==================================================
+6. ESTRUCTURA DE BASE DE DATOS
+==================================================
+
+Tablas requeridas:
+
+- users: id, name, email (unique), password, email_verified_at, two_factor_secret, two_factor_recovery_codes, two_factor_confirmed_at, current_team_id, remember_token, timestamps.
+- teams: id, name, slug (unique), is_personal, timestamps, deleted_at.
+- team_members: id, team_id, user_id, role (slug), timestamps. UNIQUE(team_id, user_id).
+- team_invitations: id, code (unique), team_id, email, role, invited_by, expires_at, accepted_at, timestamps.
+- roles: id, slug (unique), name, description, is_system, level, timestamps.
+- permissions: id, slug (unique), name, description, group (indexed), timestamps.
+- role_permissions: id, role_id, permission_id, timestamps. UNIQUE(role_id, permission_id).
+- categories: id, team_id, name, description, timestamps. UNIQUE(team_id, name).
+- suppliers: id, team_id, name, phone, address, notes, timestamps. UNIQUE(team_id, name).
+- products: id, team_id, category_id, sku, name, model, size, color, location, purchase_price, sale_price, stock, minimum_stock, is_active, timestamps, deleted_at. UNIQUE(team_id, sku).
+- purchases: id, team_id, supplier_id, purchased_at, notes, total, timestamps.
+- purchase_items: id, purchase_id, product_id, quantity, unit_cost, subtotal, timestamps.
+- sales: id, team_id, user_id, sold_at, notes, total, timestamps.
+- sale_items: id, sale_id, product_id, quantity, unit_price, subtotal, timestamps.
+
+Crea seeders para:
+
+- Roles del sistema (Propietaria, Vendedora) con todos sus permisos.
+- Permisos catalogados por grupo.
+- Usuario demo con team personal de prueba.
+
+==================================================
+7. ESTILO VISUAL Y UX
+==================================================
+
+El diseño debe ser espectacular, moderno tipo SaaS premium, con identidad de boutique.
+
+Paleta de colores:
+
+- Primario: magenta-pink vivo hsl(330 88% 58%).
+- Secundario: violeta hsl(258 95% 70%).
+- Acento: cyan eléctrico hsl(190 95% 60%).
+- Éxito: emerald hsl(160 75% 45%).
+- Advertencia: ámbar hsl(38 95% 60%).
+- Destructivo: rojo hsl(354 85% 58%).
+
+Identidad visual:
+
+- Gradiente brand: linear-gradient(135deg, magenta -> púrpura -> violeta).
+- Tipografía: Plus Jakarta Sans, con letter-spacing -0.02em en titulares.
+- Bordes redondeados generosos: --radius 0.85rem.
+- Glassmorphism en tarjetas: backdrop-blur(16px) con bordes blancos sutiles.
+- Sombras coloridas en lugar de grises: box-shadow con tinte rosa o violeta.
+- Blobs flotantes desenfocados en hero y landing.
+- Mesh gradient en fondo body con 4 puntos (rosa, violeta, cian, ámbar).
+
+Componentes clave:
+
+- .page-hero: tarjeta con gradiente mesh y badge tipo kicker.
+- .metric-card: tarjeta con blob de luz interno y hover lift.
+- .btn-gradient: botón con shimmer animado al hover.
+- .surface-panel: panel glass con sombra suave.
+- .status-pill: badges redondeados con gradient soft.
+
+Sidebar:
+
+- Fondo gradiente perlado vertical (no oscuro).
+- Item activo con gradiente brand y sombra rosada.
+- Logo con icono Sparkles sobre cuadrado gradient.
+
+Páginas de auth:
+
+- Tarjeta glass centrada en fondo con blobs animados.
+- Logo Sparkles con pulse-glow.
+- Botones primarios siempre con clase btn-gradient.
+
+Modo claro por defecto. Modo oscuro disponible pero opcional.
+
+Responsive obligatorio: móvil, tablet, escritorio.
+
+==================================================
+8. ARQUITECTURA DE CÓDIGO
+==================================================
+
+Estructura backend:
+
+- app/Http/Controllers: un controller por recurso (ProductController, SaleController, etc.).
+- app/Http/Requests: FormRequest con validación por acción (SaveProductRequest, StoreSaleRequest).
+- app/Http/Middleware: EnsureTeamMembership, EnsureTeamPermission, HandleInertiaRequests, SetTeamUrlDefaults.
+- app/Models: un modelo por tabla con relaciones tipadas y casts.
+- app/Enums: TeamRole, TeamPermission como enums backed por string.
+- app/Policies: una policy por modelo de negocio.
+- app/Support: DTOs readonly (TeamPermissions, UserTeam).
+- app/Concerns: traits reutilizables (HasTeams, PasswordValidationRules).
+- app/Actions: clases de acción para operaciones complejas (CreateTeam).
+- bootstrap/app.php: registro de middleware y alias.
+
+Estructura frontend:
+
+- resources/js/pages: vistas Inertia agrupadas por dominio (auth/, commerce/, settings/, teams/).
+- resources/js/layouts: AppSidebarLayout, AuthSimpleLayout, settings/Layout.
+- resources/js/components: componentes globales y componentes ui/ de reka-ui.
+- resources/js/composables: useAppearance, useCurrentUrl, useInitials, useTwoFactorAuth.
+- resources/js/routes: rutas tipadas generadas por wayfinder.
+- resources/js/types: declaraciones globales y por dominio.
+
+Convenciones:
+
+- Todos los componentes Vue con <script setup lang="ts">.
+- Todos los formularios usan useForm de Inertia o el componente <Form>.
+- Todos los toasts via vue-sonner.
+- Manejo de errores: ::flash('toast', ['type'=>'success|error', 'message'=>'...']) desde el backend.
+- Validación cliente: InputError component bajo cada campo.
+- Tablas grandes: paginate(15)->withQueryString() y links del paginador.
+
+==================================================
+9. RUTAS Y ENDPOINTS
+==================================================
+
+Estructura de URLs:
+
+Públicas:
+
+- GET / -> Welcome (landing).
+- GET /login, POST /login.
+- GET /register, POST /register.
+- GET /forgot-password, POST /forgot-password.
+- GET /reset-password/{token}, POST /reset-password.
+
+Por team (prefijo /{current_team}, middleware auth + verified + EnsureTeamMembership):
+
+- GET dashboard (team.can:dashboard:view).
+- products: GET (product:view), POST (product:manage), PATCH /{id} (product:manage), DELETE /{id} (product:manage).
+- categories: GET (category:view), POST (category:manage), PATCH /{id} (category:manage), DELETE /{id} (category:manage).
+- suppliers: GET (supplier:view), POST/PATCH/DELETE (supplier:manage).
+- purchases: GET (purchase:view), POST (purchase:create).
+- sales: GET (sale:view), POST (sale:create).
+- GET reports (report:view).
+
+Settings:
+
+- GET /settings/profile, PATCH /settings/profile, DELETE /settings/profile.
+- GET /settings/security, PUT /settings/security.
+- GET /settings/teams, POST /settings/teams.
+- GET /settings/teams/{slug}/edit, PATCH, DELETE.
+- POST /settings/teams/{slug}/invitations.
+- PATCH /settings/teams/{slug}/members/{id}.
+- DELETE /settings/teams/{slug}/members/{id}.
+- GET /settings/appearance.
+
+Genera helpers tipados de Wayfinder para todas las rutas en resources/js/routes.
+
+==================================================
+10. CALIDAD DE CÓDIGO
+==================================================
+
+Estándares obligatorios:
+
+- PSR-12 en PHP, formateado con Laravel Pint.
+- ESLint + Prettier en JS/TS, sin errores.
+- TypeScript estricto: nada de any sin justificar.
+- vue-tsc --noEmit debe pasar sin errores.
+- No copy-paste: refactorizar a traits, composables o componentes reutilizables.
+- Comentarios PHPDoc en cada método público con tipos genéricos en relaciones.
+- Validación tanto en cliente como en servidor.
+- Mensajes de error en español.
+- Nombres de variables en inglés (convención técnica), textos visibles en español.
+- Transacciones DB::transaction en operaciones que afecten múltiples tablas.
+
+==================================================
+11. SEEDERS Y DATOS DE PRUEBA
+==================================================
+
+Crea seeders ejecutables con php artisan db:seed que generen:
+
+- Roles del sistema (Propietaria, Vendedora) con todos sus permisos asignados.
+- Catálogo completo de 19 permisos.
+- Usuario demo:
+  - Nombre: Emma Test
+  - Email: emma@test.local
+  - Password: password
+  - Team personal "Emma Boutique".
+- 5 categorías ejemplo: Vestidos, Blusas, Pantalones, Chaquetas, Accesorios.
+- 3 proveedores ejemplo.
+- 20 productos ejemplo distribuidos en las categorías.
+- 5 compras ejemplo con stock generado.
+- 10 ventas ejemplo distribuidas en los últimos 30 días.
+
+==================================================
+12. INSTALACIÓN Y EJECUCIÓN
+==================================================
+
+El proyecto debe ser instalable con estos pasos en Windows + Laragon:
+
+1. git clone (o copia de carpeta) en C:\laragon\www\appweb_ventasemmafashion.
+2. composer install.
+3. npm install.
+4. cp .env.example .env y configurar conexión MySQL.
+5. php artisan key:generate.
+6. php artisan migrate.
+7. php artisan db:seed.
+8. npm run dev (en una terminal).
+9. php artisan serve (en otra terminal).
+10. Abrir http://127.0.0.1:8000.
+
+Login demo: emma@test.local / password.
+
+==================================================
+13. ENTREGABLES FINALES
+==================================================
+
+Al finalizar entrega:
+
+1. Proyecto Laravel completo en carpeta appweb_ventasemmafashion.
+2. Migrations completas y ejecutables en orden.
+3. Seeders funcionales.
+4. Todos los controllers, requests, modelos, policies, middlewares.
+5. Todas las páginas Vue traducidas al español.
+6. Rutas Wayfinder generadas.
+7. Tailwind v4 configurado con la paleta y componentes pedidos.
+8. README.md en la raíz con:
+   - Stack tecnológico.
+   - Pasos de instalación.
+   - Credenciales demo.
+   - Estructura de carpetas.
+   - Matriz de permisos por rol.
+
+==================================================
+14. ORDEN DE IMPLEMENTACIÓN SUGERIDO
+==================================================
+
+Sigue este orden para evitar bloqueos:
+
+1. Crear proyecto Laravel + Inertia + Vue + Tailwind v4.
+2. Configurar base de datos y .env.
+3. Migrations de users, teams, team_members, team_invitations.
+4. Auth con Fortify (login, register, 2FA).
+5. Enums TeamRole y TeamPermission.
+6. Tablas roles, permissions, role_permissions + seeder.
+7. Middleware EnsureTeamMembership y EnsureTeamPermission.
+8. Migrations de categorias, proveedores, productos.
+9. CRUD de Categorías y Proveedores.
+10. CRUD de Productos.
+11. Migrations de compras y ventas + sus items.
+12. Módulos Compras y Ventas con transacciones atómicas.
+13. Módulo Reportes y Dashboard.
+14. Gestión de usuarios (invitaciones, cambio de rol, quitar miembros).
+15. Estilo visual final: paleta, gradientes, sidebar perlado, hero panels.
+16. Traducción completa al español.
+17. Seeder de datos demo.
+18. README.md y verificación final.
+
+==================================================
+15. RESULTADO ESPERADO
+==================================================
+
+Un sistema funcional, seguro, traducido al español, con diseño espectacular, que permita:
+
+- A la Propietaria: gestionar todo su catálogo, ventas, compras, ver reportes y administrar a sus Vendedoras.
+- A la Vendedora: registrar ventas, registrar compras, gestionar proveedores, ver productos y categorías, sin acceso a reportes ni a gestión de usuarios.
+
+La interfaz debe verse moderna y profesional, no genérica. El proyecto debe quedar listo para correr en producción local con un solo comando.
+
+Construye TODO el proyecto desde cero siguiendo este prompt. No omitas módulos. No simplifiques la seguridad. No uses placeholders ni "TODO". Genera código real, completo y funcional.
